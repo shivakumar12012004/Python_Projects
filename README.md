@@ -46,7 +46,6 @@ Your `expense_data.csv` (or any CSV you import) must have exactly these columns:
 
 ``` 
 ├── main.py           ← run this
-├── ui.py             ← GUI (tkinter)
 ├── datahandling.py   ← pandas data logic
 ├── Visuals.py        ← matplotlib charts
 └── Data/ expense_data.csv  ← your data lives here
