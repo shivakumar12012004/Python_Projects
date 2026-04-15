@@ -1,92 +1,71 @@
 import pandas as pd
-import os
 from datetime import datetime
 
-FILE = "Data/expense_data.csv"
-
-def setup_file():
-    if not os.path.exists(FILE):
-        os.makedirs("Data", exist_ok=True)
-        df = pd.DataFrame(columns=["Date", "Account", "Category", "Income/Expense", "Amount"])
-        df.to_csv(FILE, index=False)
-
-def load_clean():
-    df = pd.read_csv(FILE)
-
-    df.dropna(axis=1, how="all", inplace=True)
-
-    if "INR" in df.columns:
-        df.drop("INR", axis=1, inplace=True)
-
-    df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
-    df.dropna(subset=["Amount"], inplace=True)
-
-    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
-    df.dropna(subset=["Date"], inplace=True)
-
+def getdf(file_loc):
+    df = pd.read_csv(file_loc)
+    df['Date'] = pd.to_datetime(df['Date'], format='%m-%d-%Y %H.%M', errors='coerce')
+    df['Date'].fillna(pd.to_datetime(df['Date'], format='%m/%d/%Y %H:%M', errors='coerce'), inplace=True)
     return df
 
-def print_info():
-    df = load_clean()
-    print(df.info())
-    print(df.describe())
+def getinfo(df):
+    return df.info()
 
-def save_expense(date, account, category, inc_exp, amount):
-    df = pd.read_csv(FILE)
-    new_row = {
-        "Date": date,
-        "Account": account,
-        "Category": category,
-        "Income/Expense": inc_exp,
-        "Amount": float(amount)
-    }
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(FILE, index=False)
+def cleandf(df):
+    df.dropna(axis=1)
+    df.drop(columns="INR", axis=1)
 
-def import_from_csv(filepath):
-    try:
-        incoming = pd.read_csv(filepath)
-    except Exception as e:
-        return False, str(e)
+def gettotalamount(df):
+    totalAmount = sum(df["Amount"])
+    return totalAmount
 
-    incoming.dropna(axis=1, how="all", inplace=True)
+def get_monthly_totals(df):
+    df['YearMonth'] = df['Date'].dt.to_period('M')
+    monthly_totals = df.groupby('YearMonth')['Amount'].sum().to_dict()
+    return {str(k): v for k, v in monthly_totals.items()}
 
-    if "INR" in incoming.columns:
-        incoming.drop("INR", axis=1, inplace=True)
+def get_category_analysis(df):
+    category_analysis = {}
+    for category in df['Category'].unique():
+        category_df = df[df['Category'] == category]
+        total = category_df['Amount'].sum()
+        expenses = category_df[category_df['Income/Expense'] == 'Expense']['Amount'].sum()
+        income = category_df[category_df['Income/Expense'] == 'Income']['Amount'].sum()
+        count = len(category_df)   
+        category_analysis[category] = {
+            'total': total,
+            'expenses': expenses,
+            'income': income,
+            'transaction_count': count
+        }
+    return category_analysis
 
-    needed = ["Date", "Account", "Category", "Income/Expense", "Amount"]
-    for col in needed:
-        if col not in incoming.columns:
-            return False, f"Missing column: '{col}' — make sure your CSV has: {needed}"
+def get_weekly_expense_income(df):
+    df['Week'] = df['Date'].dt.to_period('W')
+    weekly_data = {}
+    for week in df['Week'].unique():
+        week_df = df[df['Week'] == week]
+        expenses = week_df[week_df['Income/Expense'] == 'Expense']['Amount'].sum()
+        income = week_df[week_df['Income/Expense'] == 'Income']['Amount'].sum()
+        net = income - expenses
+        weekly_data[str(week)] = {
+            'expenses': expenses,
+            'income': income,
+            'net': net
+        }
+    return weekly_data
 
-    existing = pd.read_csv(FILE)
-    merged = pd.concat([existing, incoming], ignore_index=True)
-    merged.drop_duplicates(inplace=True)
-    merged.to_csv(FILE, index=False)
-    return True, f"Imported {len(incoming)} rows successfully."
-
-def load_all():
-    return load_clean()
-
-def get_month_data(month, year):
-    df = load_clean()
-    filtered = df[(df["Date"].dt.month == month) & (df["Date"].dt.year == year)]
-    return filtered
-
-def get_expenses_only(df):
-    return df[df["Income/Expense"].str.strip().str.lower() == "expense"]
-
-def get_category_totals(df):
-    expenses = get_expenses_only(df)
-    totals = expenses.groupby("Category")["Amount"].sum().to_dict()
-    return totals
-
-def get_income_total(df):
-    income = df[df["Income/Expense"].str.strip().str.lower() == "income"]
-    return income["Amount"].sum()
-
-def get_highest_category(totals):
-    if not totals:
-        return None, 0
-    top = max(totals, key=totals.get)
-    return top, totals[top]
+def get_monthly_expense_income(df):
+    df['YearMonth'] = df['Date'].dt.to_period('M')
+    monthly_data = {}
+    for month in df['YearMonth'].unique():
+        month_df = df[df['YearMonth'] == month]
+        expenses = month_df[month_df['Income/Expense'] == 'Expense']['Amount'].sum()
+        income = month_df[month_df['Income/Expense'] == 'Income']['Amount'].sum()
+        net = income - expenses
+        monthly_data[str(month)] = {
+            'expenses': expenses,
+            'income': income,
+            'net': net
+        }
+    
+    return monthly_data
